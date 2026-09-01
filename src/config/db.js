@@ -12,7 +12,7 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 //pull request 
-
+//otro comit porque si
 export async function testConnection() {
   try {
     console.log('Conexión a BD exitosa');
