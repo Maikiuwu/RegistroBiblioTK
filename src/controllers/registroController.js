@@ -1,10 +1,10 @@
-import pool from '../config/db.js' // Ajusta la ruta a tu archivo de conexión
-import bcrypt from 'bcrypt'; // Asegúrate de tener bcryptjs instalado
+import pool from '../config/db.js' 
+import bcrypt from 'bcrypt';
 
 export async function Registro(req, res) {
   try {
-    const { nombres, contrasena } = req.body;
-    const hashpassword = await bcrypt.hashSync(contrasena, 10); // Hash de la contraseña
+    const { nombres, contrasena} = req.body;
+    const hashpassword = await bcrypt.hashSync(contrasena, 10);
 
     // 1. Validar datos requeridos
     if (!nombres || !hashpassword) {
