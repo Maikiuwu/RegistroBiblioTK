@@ -1,6 +1,8 @@
 import express from 'express'
 import bodyParser from 'body-parser'
 import routerBiblioTK from './router/routerBiblioTK.js'
+import pool from './config/db.js'
+import { testConnection }from './config/db.js'
 
 // instanciar express
 const app = express()
@@ -15,5 +17,8 @@ app.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`)
 })
 
+// Probar conexión a la base de datos
+testConnection();
+
 // Enrutar rutas RegistroBiblioTK
-app.use('/UserLibrary', routerBiblioTK)
+app.use('/RegistroBiblioTK', routerBiblioTK)
