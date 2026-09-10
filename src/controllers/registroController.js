@@ -9,7 +9,7 @@ export async function Registro(req, res) {
       email,
       cc,
       contrasena,
-      rol = req.body.rol || "2",
+      rol = req.body.rol || "1",
       fechaRegistro,
       activo = req.body.activo || true,
       celular,
