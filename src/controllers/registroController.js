@@ -1,78 +1,150 @@
-import pool from '../config/db.js'
 import bcrypt from 'bcrypt';
+import pool from '../config/db.js';
 
-export async function Registro(req, res) {
-  try {
-    const {
-      nombres,
-      apellidos,
-      email,
-      cc,
-      contrasena,
-      rol = req.body.rol || "1",
-      fechaRegistro,
-      activo = req.body.activo || true,
-      celular,
-      nombreUsuario } = req.body;
+const letras = "A-Za-zÁÉÍÓÚÜÑáéíóúüñ";
+const patronNombre = new RegExp(`^[${letras}]+(?:[ '-][${letras}]+)*$`);
+const patronEmail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const patronCedula = /^[1-9]\d*$/;
+const patronCelular = /^\d{7,15}$/;
 
-    const hashpassword = await bcrypt.hash(contrasena, 10);
-    //para login
-    //await bcrypt.compare(contrasenaRecibida, usuario.password);
+const mensajesDuplicado = {
+  email: 'Ese correo ya está registrado.',
+  cc: 'Esa cédula ya está registrada.',
+  nombreUsuario: 'Ese nombre de usuario ya está en uso.',
+};
 
-    /*
-    // 1. Validar datos requeridos
-    if (!nombres || !hashpassword) {
-      return res.status(400).json({ message: 'Todos los campos son obligatorios' });
-    }
-*/
+function comoTexto(valor) {
+  return typeof valor === 'string' || typeof valor === 'number'
+    ? String(valor).trim()
+    : '';
+}
 
-    const verificarExistenciaUsuario = async (email, cc, nombreUsuario) => {  
-      const [rows] = await pool.query(
-        `SELECT * FROM usuarios WHERE email = ? OR cc = ? OR nombreusuario = ?`,
-        [email, cc, nombreUsuario]
-      );
-      return rows.length > 0; // Devuelve true si el usuario ya existe, false si no existe
+function normalizarRegistro(datos = {}) {
+  return {
+    nombres: comoTexto(datos.nombres),
+    apellidos: comoTexto(datos.apellidos),
+    email: comoTexto(datos.email).toLowerCase(),
+    cc: comoTexto(datos.cc),
+    contrasena: typeof datos.contrasena === 'string' ? datos.contrasena : '',
+    celular: comoTexto(datos.celular),
+    nombreUsuario: comoTexto(datos.nombreUsuario),
+  };
+}
+
+function esNombreValido(valor) {
+  return valor.length >= 2 && valor.length <= 50 && patronNombre.test(valor);
+}
+
+// Cada regla dice exactamente qué está mal, no solo que algo falló
+function validarRegistro(datos) {
+  if (!esNombreValido(datos.nombres)) {
+    return {
+      campo: 'nombres',
+      message:
+        'Los nombres deben tener entre 2 y 50 caracteres: letras, espacios, apóstrofes o guiones.',
     };
+  }
 
-    const usuarioExiste = await verificarExistenciaUsuario(email, cc, nombreUsuario);
+  if (!esNombreValido(datos.apellidos)) {
+    return {
+      campo: 'apellidos',
+      message:
+        'Los apellidos deben tener entre 2 y 50 caracteres: letras, espacios, apóstrofes o guiones.',
+    };
+  }
 
-    if (usuarioExiste) {
-      return res.status(409).json({
-        message: 'El usuario ya existe',
-      });
+  if (!patronCedula.test(datos.cc) || datos.cc.length > 15) {
+    return {
+      campo: 'cc',
+      message: 'La cédula debe ser un número entero mayor que 0, de hasta 15 dígitos.',
+    };
+  }
+
+  if (!patronEmail.test(datos.email) || datos.email.length > 100) {
+    return {
+      campo: 'email',
+      message: 'Ingresa un correo válido, por ejemplo: tu@correo.com.',
+    };
+  }
+
+  if (!patronCelular.test(datos.celular)) {
+    return {
+      campo: 'celular',
+      message: 'El celular debe contener solo números, entre 7 y 15 dígitos.',
+    };
+  }
+
+  if (!datos.nombreUsuario || datos.nombreUsuario.length > 30) {
+    return {
+      campo: 'nombreUsuario',
+      message: 'El nombre de usuario debe tener entre 1 y 30 caracteres.',
+    };
+  }
+
+  if (datos.contrasena.length < 8) {
+    return {
+      campo: 'contrasena',
+      message: 'La contraseña debe tener al menos 8 caracteres.',
+    };
+  }
+
+  return null;
+}
+
+function mismoTexto(a, b) {
+  return String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
+}
+
+export async function Registro(req, res, next) {
+  try {
+    const datos = normalizarRegistro(req.body);
+    const errorValidacion = validarRegistro(datos);
+
+    if (errorValidacion) {
+      return res.status(400).json(errorValidacion);
     }
 
+    // La tabla no tiene índices UNIQUE: la unicidad se comprueba acá, igual que en Perfil
+    const [duplicados] = await pool.query(
+      `SELECT email, cc, nombreusuario FROM usuarios WHERE email = ? OR cc = ? OR nombreusuario = ? LIMIT 1`,
+      [datos.email, datos.cc, datos.nombreUsuario],
+    );
+
+    if (duplicados.length) {
+      const [existente] = duplicados;
+      const campo = mismoTexto(existente.email, datos.email)
+        ? 'email'
+        : mismoTexto(existente.cc, datos.cc)
+          ? 'cc'
+          : 'nombreUsuario';
+
+      return res.status(409).json({ campo, message: mensajesDuplicado[campo] });
+    }
+
+    const hashpassword = await bcrypt.hash(datos.contrasena, 10);
+
+    // El rol nunca se toma del body: todo registro público entra como "usuario".
+    // Antes cualquiera podía mandar "rol": "admin" y auto-promoverse.
     const [resultado] = await pool.query(
       `INSERT INTO usuarios
-    (nombres, apellidos, email, cc, password, rol, fecharegistro, activo, celular, nombreusuario)
-    VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+        (nombres, apellidos, email, cc, password, rol, fecharegistro, activo, celular, nombreusuario)
+       VALUES (?, ?, ?, ?, ?, 'usuario', NOW(), true, ?, ?)`,
       [
-        nombres,
-        apellidos,
-        email,
-        cc,
+        datos.nombres,
+        datos.apellidos,
+        datos.email,
+        datos.cc,
         hashpassword,
-        rol,
-        activo,
-        celular,
-        nombreUsuario,
+        datos.celular,
+        datos.nombreUsuario,
       ],
     );
 
-    // 2. Insertar en la base de datos
-
-
-    // 3. Responder al cliente con el ID creado
     return res.status(201).json({
       message: 'Usuario registrado con éxito',
-      id: resultado.insertId
+      id: resultado.insertId,
     });
-
   } catch (error) {
-    console.error('Error al insertar:', error);
-    return res.status(500).json({
-      message: 'Error en el registro',
-      error: error.message
-    });
+    return next(error);
   }
 }

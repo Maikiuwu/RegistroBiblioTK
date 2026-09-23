@@ -14,9 +14,10 @@ const pool = mysql.createPool({
 
 export async function testConnection() {
   try {
+    await pool.query('SELECT 1');
     console.log('Conexión a BD exitosa');
   } catch (error) {
-    console.error('❌ Error al conectar a la BD:', error.message);
+    console.error('Error al conectar a la BD:', error.message);
     throw error;
   }
 }
