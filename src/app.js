@@ -10,11 +10,13 @@ const app = express()
 
 // Lectura de body en formato JSON
 app.use(bodyParser.json())
+const allowedOrigins = Object.entries(process.env)
+    .filter(([key, value]) => key.startsWith('ALLOWED_ORIGIN_') && value)
+    .map(([, origin]) => origin.trim());
 
-// Configuración de CORS
 app.use(
     cors({
-        origin: ["http://localhost:5173", "http://localhost:5174"],
+        origin: allowedOrigins,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
     }),
