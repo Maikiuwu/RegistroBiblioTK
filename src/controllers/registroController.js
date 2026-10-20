@@ -1,6 +1,7 @@
 import dns from "node:dns/promises";
 import bcrypt from "bcrypt";
 import pool from "../config/db.js";
+import { notificar } from "../utils/notificar.js";
 
 async function domainCanReceiveEmail(email) {
 	const domain = email.split("@")[1];
@@ -78,6 +79,13 @@ export async function Registro(req, res) {
 				nombreUsuario,
 			],
 		);
+
+		// El superadministrador ve las cuentas nuevas en tiempo real
+		notificar("usuario.registrado", {
+			usuarioId: resultado.insertId,
+			nombre: `${nombres} ${apellidos}`.trim(),
+			email,
+		});
 
 		return res.status(201).json({
 			message: "Usuario registrado con éxito",
