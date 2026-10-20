@@ -22,7 +22,6 @@ export async function Registro(req, res) {
 			email,
 			cc,
 			contrasena,
-			rol = req.body.rol || "1",
 			fechaRegistro,
 			activo = req.body.activo || true,
 			celular,
@@ -62,17 +61,18 @@ export async function Registro(req, res) {
 			});
 		}
 
+		// El rol nunca sale del cuerpo de la petición (se podía mandar "superadmin" desde el navegador):
+		// toda cuenta nueva es de lector
 		const [resultado] = await pool.query(
 			`INSERT INTO usuarios
 		(nombres, apellidos, email, cc, password, rol, fecharegistro, activo, celular, nombreusuario)
-		VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, 'usuario', NOW(), ?, ?, ?)`,
 			[
 				nombres,
 				apellidos,
 				email,
 				cc,
 				hashpassword,
-				rol,
 				activo,
 				celular,
 				nombreUsuario,
